@@ -136,7 +136,11 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs, agora_relato
         pdf.ln(5)
         pdf.set_font(pdf_font, "B", 10)
         pdf.cell(0, 10, "Posicionamento de Adjuvantes:", 0, 1)
-        x_start, y_pos, col_width = 20, pdf.get_y(), 45
+        
+        x_start = 20
+        y_pos = pdf.get_y()
+        col_width = 45
+        
         for i, (nome, dose) in enumerate(adjs):
             img_path = caminhos_adj.get(nome)
             if img_path and os.path.exists(img_path):
@@ -145,13 +149,15 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs, agora_relato
                     pdf.set_fill_color(255, 255, 255)
                     pdf.rect(0, 0, 210, 297, "F")
                     y_pos = 20
+                
                 pdf.image(img_path, x=x_start + (i % 4) * col_width, y=y_pos, w=25)
                 if dose:
                     pdf.set_xy(x_start + (i % 4) * col_width, y_pos + 22)
                     pdf.set_font(pdf_font, "B", 8)
                     pdf.cell(25, 5, f"{dose} ml/ha", 0, 0, "C")
-            if (i + 1) % 4 == 0: y_pos += 35
-                pdf.set_y(y_pos + 40)
+            
+            if (i + 1) % 4 == 0:
+                y_pos += 35
     if os.path.exists("delta.png"):
         if pdf.get_y() > 180: 
             pdf.add_page()
