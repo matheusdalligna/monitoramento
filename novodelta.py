@@ -5,6 +5,7 @@ import os
 import datetime
 import base64
 import re
+import pytz
 from io import BytesIO
 from fpdf import FPDF  # Certifique-se de que é a fpdf2 (pip install fpdf2)
 
@@ -57,7 +58,6 @@ st.markdown("""
 
 # --- 3. FUNÇÕES TÉCNICAS ---
 def calcular_delta_t(t_seca, ur):
-    # Cálculo do Delta T utilizando a fórmula de Stull para temperatura de bulbo úmido
     tw = t_seca * math.atan(0.151977 * (ur + 8.313659)**0.5) + \
          math.atan(t_seca + ur) - math.atan(ur - 1.676331) + \
          0.00391838 * (ur)**1.5 * math.atan(0.023101 * ur) - 4.686035
@@ -89,52 +89,45 @@ def obter_recomendacao(dt, temp):
         return "NÃO RECOMENDADO", "#dc3545", "white", \
                "⛔ Delta T acima de 10. Perda de produto por evaporação severa antes de atingir o alvo."
 
-def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs):
+def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs, agora_relatorio):
     pdf = FPDF()
     pdf.add_page()
     
-    # AJUSTE 2: FUNDO BRANCO PARA NÃO FICAR PRETO NO COMPARTILHAMENTO
+    # CORREÇÃO: FUNDO BRANCO PARA COMPARTILHAMENTO
     pdf.set_fill_color(255, 255, 255)
     pdf.rect(0, 0, 210, 297, "F")
     pdf.set_text_color(0, 0, 0)
-
-    # Caminho absoluto para a fonte NotoSans-Regular.ttf
+    
     current_dir = os.path.dirname(os.path.abspath(__file__))
     font_path = os.path.join(current_dir, "NotoSans-Regular.ttf")
 
-    # Tenta carregar a fonte NotoSans
     if os.path.exists(font_path):
         pdf.add_font("NotoSans", "", font_path)
-        pdf.add_font("NotoSans", "B", font_path) # Usa a mesma para negrito se não tiver a Bold
+        pdf.add_font("NotoSans", "B", font_path)
         pdf_font = "NotoSans"
     else:
-        st.error(f"Arquivo {font_path} não encontrado na pasta!")
         pdf_font = "helvetica"
 
-    # Início do Relatório
     pdf.set_font(pdf_font, "B", 16)
-    pdf.cell(0, 10, "Relatório de Aplicação - Gota Perfeita", 0, 1, "C")
+    pdf.cell(0, 10, "Relatorio de Aplicacao - Gota Perfeita", 0, 1, "C")
     pdf.ln(5)
     
     pdf.set_font(pdf_font, "", 11)
-    agora = datetime.datetime.now()
-    pdf.cell(0, 7, f"Cliente: {cliente.upper() if cliente else 'NÃO INFORMADO'}", 0, 1)
-    pdf.cell(0, 7, f"RTV: {rtv.upper() if rtv else 'NÃO INFORMADO'}", 0, 1)
+    agora = agora_relatorio
+    pdf.cell(0, 7, f"Cliente: {cliente.upper() if cliente else 'NAO INFORMADO'}", 0, 1)
+    pdf.cell(0, 7, f"RTV: {rtv.upper() if rtv else 'NAO INFORMADO'}", 0, 1)
     pdf.cell(0, 7, f"Data: {agora.strftime('%d/%m/%Y')}  |  Hora: {agora.strftime('%H:%M')}", 0, 1)
     pdf.ln(5)
     
-    # Condições Meteorológicas
     pdf.set_font(pdf_font, "B", 12)
-    pdf.cell(0, 10, f"Condições: {temp}°C | UR: {ur}% | Delta T: {dt}", 1, 1, "C")
+    pdf.cell(0, 10, f"Condicoes: {temp}C | UR: {ur}% | Delta T: {dt}", 1, 1, "C")
     pdf.ln(5)
     
-    # Status e Parecer
     pdf.set_font(pdf_font, "B", 11)
     pdf.cell(0, 10, f"Status: {status}", 0, 1)
     pdf.set_font(pdf_font, "", 10)
-    pdf.multi_cell(0, 7, f"Parecer Técnico: {parecer}")
+    pdf.multi_cell(0, 7, f"Parecer Tecnico: {parecer}")
     
-    # Adjuvantes
     if adjs:
         pdf.ln(5)
         pdf.set_font(pdf_font, "B", 10)
@@ -147,10 +140,9 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs):
         for i, (nome, dose) in enumerate(adjs):
             img_path = caminhos_adj.get(nome)
             if img_path and os.path.exists(img_path):
-                # Verifica se a imagem cabe na página antes de inserir
                 if y_pos > 250:
                     pdf.add_page()
-                    pdf.set_fill_color(255, 255, 255) # Fundo branco na nova página
+                    pdf.set_fill_color(255, 255, 255)
                     pdf.rect(0, 0, 210, 297, "F")
                     y_pos = 20
                 
@@ -162,10 +154,8 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs):
             
             if (i + 1) % 4 == 0:
                 y_pos += 35
-                
         pdf.ln(40)
 
-    # Gráfico de Delta T
     if os.path.exists("delta.png"):
         if pdf.get_y() > 180: 
             pdf.add_page()
@@ -173,7 +163,6 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs):
             pdf.rect(0, 0, 210, 297, "F")
         pdf.image("delta.png", x=62, w=85) 
         
-    # CORREÇÃO DO ERRO BYTEARRAY: Forçar conversão para bytes
     return bytes(pdf.output())
 
 # --- 4. INTERFACE STREAMLIT ---
@@ -216,17 +205,23 @@ with st.expander("Configurar Dados do Relatório", expanded=True):
     cliente_input = col_c.text_input("Nome do Cliente / Fazenda")
     rtv_input = col_r.text_input("Nome do RTV")
     
+    # DATA E HORA MANUAIS
+    fuso = pytz.timezone('America/Sao_Paulo')
+    agora_fuso = datetime.datetime.now(fuso)
+    col_data, col_hora = st.columns(2)
+    data_manual = col_data.date_input("Data da medição", agora_fuso.date())
+    hora_manual = col_hora.time_input("Hora da medição", agora_fuso.time())
+    agora_escolhida = datetime.datetime.combine(data_manual, hora_manual)
+    
     st.write("**Posicionamento de Adjuvantes:**")
     c_adj1, c_adj2 = st.columns(2)
-    
-    # Checkboxes
     aqx_chk = c_adj1.checkbox("LINHA AQUAX", value=True)
     t_chk = c_adj2.checkbox("TEK F")
     h_chk = c_adj1.checkbox("THUNDER")
     a_chk = c_adj2.checkbox("ALVO")
     x_chk = c_adj1.checkbox("CITRO X")
     
-    # As doses agora só aparecem se o respectivo check for True
+    # DOSES INTELIGENTES (Aparecem só se marcado)
     d_tek = c_adj2.text_input("Dose TEK F (ml/ha)", "50") if t_chk else ""
     d_thu = c_adj1.text_input("Dose THUNDER (ml/ha)", "50") if h_chk else ""
     d_alv = c_adj2.text_input("Dose ALVO (ml/ha)", "50") if a_chk else ""
@@ -234,9 +229,9 @@ with st.expander("Configurar Dados do Relatório", expanded=True):
 
     parecer_obrigatorio = st.text_area("Observação Técnica e Recomendação:", value=msg)
 
-# Prévia HTML
-if st.button("👁️ Resumo Rápido"):
-    agora = datetime.datetime.now()
+# Prévia HTML com nome alterado para "Resumo rápido"
+if st.button("👁️ Resumo rápido"):
+    agora = agora_escolhida
     adjs_sel = []
     if aqx_chk: adjs_sel.append(("LINHA AQUAX", ""))
     if t_chk: adjs_sel.append(("TEK F", d_tek))
@@ -277,7 +272,7 @@ if st.button("👁️ Resumo Rápido"):
 
 st.divider()
 
-# Preparação Final e Download
+# Preparação Final e Download usando a data escolhida
 adjs_sel_final = []
 if aqx_chk: adjs_sel_final.append(("LINHA AQUAX", ""))
 if t_chk: adjs_sel_final.append(("TEK F", d_tek))
@@ -285,7 +280,7 @@ if h_chk: adjs_sel_final.append(("THUNDER", d_thu))
 if a_chk: adjs_sel_final.append(("ALVO", d_alv))
 if x_chk: adjs_sel_final.append(("CITRO X", d_cit))
 
-pdf_final_bytes = exportar_pdf(cliente_input, rtv_input, int(t_input), int(ur_input), f"{dt_resultado:.1f}", status, parecer_obrigatorio, adjs_sel_final)
+pdf_final_bytes = exportar_pdf(cliente_input, rtv_input, int(t_input), int(ur_input), f"{dt_resultado:.1f}", status, parecer_obrigatorio, adjs_sel_final, agora_escolhida)
 
 col_p1, col_p2 = st.columns(2)
 
@@ -294,8 +289,8 @@ with col_p1:
         base64_pdf = base64.b64encode(pdf_final_bytes).decode('utf-8')
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
         
-        # A dica agora aparece logo após o clique e antes do PDF
-        st.info("💡 **Dica:** Segure pressionado sobre a prévia abaixo para compartilhar o relatório.")
+        # DICA POSICIONADA ACIMA DA PRÉVIA
+        st.info("💡 **Dica:** Segure pressionado sobre a prévia abaixo para compartilhar o relatório diretamente.")
         st.markdown(pdf_display, unsafe_allow_html=True)
 
 with col_p2:
@@ -306,4 +301,4 @@ with col_p2:
         mime="application/pdf"
     )
 
-st.caption("Gota Perfeita | Sua Aplicação de Precisão")
+st.caption("Gota Perfeita | Microxisto - Sua Aplicação de Precisão")
