@@ -7,7 +7,7 @@ import base64
 import re
 import pytz
 from io import BytesIO
-from fpdf import FPDF  # Certifique-se de que é a fpdf2 (pip install fpdf2)
+from fpdf import FPDF 
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Monitor de aplicação - Gota Perfeita", layout="centered")
@@ -88,12 +88,15 @@ def obter_recomendacao(dt, temp):
     else:
         return "NÃO RECOMENDADO", "#dc3545", "white", \
                "⛔ Delta T acima de 10. Perda de produto por evaporação severa antes de atingir o alvo."
+def limpar_emojis(texto):
+    if not texto:
+        return ""
+    # Remove caracteres que não estão no intervalo Latin-1 (onde moram os emojis e símbolos especiais)
+    return re.sub(r'[^\x00-\xff]', '', texto)
 
 def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs, agora_relatorio):
     pdf = FPDF()
     pdf.add_page()
-    
-    # CORREÇÃO: FUNDO BRANCO PARA COMPARTILHAMENTO
     pdf.set_fill_color(255, 255, 255)
     pdf.rect(0, 0, 210, 297, "F")
     pdf.set_text_color(0, 0, 0)
@@ -113,30 +116,27 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs, agora_relato
     pdf.ln(5)
     
     pdf.set_font(pdf_font, "", 11)
-    agora = agora_relatorio
-    pdf.cell(0, 7, f"Cliente: {cliente.upper() if cliente else 'NAO INFORMADO'}", 0, 1)
-    pdf.cell(0, 7, f"RTV: {rtv.upper() if rtv else 'NAO INFORMADO'}", 0, 1)
-    pdf.cell(0, 7, f"Data: {agora.strftime('%d/%m/%Y')}  |  Hora: {agora.strftime('%H:%M')}", 0, 1)
+    pdf.cell(0, 7, f"Cliente: {cliente.upper() if cliente else 'NAO INFORMADO'}".encode('latin-1', 'replace').decode('latin-1'), 0, 1)
+    pdf.cell(0, 7, f"RTV: {rtv.upper() if rtv else 'NAO INFORMADO'}".encode('latin-1', 'replace').decode('latin-1'), 0, 1)
+    pdf.cell(0, 7, f"Data: {agora_relatorio.strftime('%d/%m/%Y')}  |  Hora: {agora_relatorio.strftime('%H:%M')}", 0, 1)
     pdf.ln(5)
     
     pdf.set_font(pdf_font, "B", 12)
-    pdf.cell(0, 10, f"Condicoes: {temp}C | UR: {ur}% | Delta T: {dt}", 1, 1, "C")
+    # Suporte ao símbolo °C via encoding latin-1
+    texto_cond = f"Condições: {temp}°C | UR: {ur}% | Delta T: {dt}"
+    pdf.cell(0, 10, texto_cond.encode('latin-1', 'replace').decode('latin-1'), 1, 1, "C")
     pdf.ln(5)
     
     pdf.set_font(pdf_font, "B", 11)
-    pdf.cell(0, 10, f"Status: {status}", 0, 1)
+    pdf.cell(0, 10, f"Status: {limpar_emojis(status)}".encode('latin-1', 'replace').decode('latin-1'), 0, 1)
     pdf.set_font(pdf_font, "", 10)
-    pdf.multi_cell(0, 7, f"Parecer Tecnico: {parecer}")
+    pdf.multi_cell(0, 7, f"Parecer Tecnico: {limpar_emojis(parecer)}".encode('latin-1', 'replace').decode('latin-1'))
     
     if adjs:
         pdf.ln(5)
         pdf.set_font(pdf_font, "B", 10)
         pdf.cell(0, 10, "Posicionamento de Adjuvantes:", 0, 1)
-        
-        x_start = 20
-        y_pos = pdf.get_y()
-        col_width = 45
-        
+        x_start, y_pos, col_width = 20, pdf.get_y(), 45
         for i, (nome, dose) in enumerate(adjs):
             img_path = caminhos_adj.get(nome)
             if img_path and os.path.exists(img_path):
@@ -145,16 +145,12 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs, agora_relato
                     pdf.set_fill_color(255, 255, 255)
                     pdf.rect(0, 0, 210, 297, "F")
                     y_pos = 20
-                
                 pdf.image(img_path, x=x_start + (i % 4) * col_width, y=y_pos, w=25)
                 if dose:
                     pdf.set_xy(x_start + (i % 4) * col_width, y_pos + 22)
                     pdf.set_font(pdf_font, "B", 8)
                     pdf.cell(25, 5, f"{dose} ml/ha", 0, 0, "C")
-            
-            if (i + 1) % 4 == 0:
-                y_pos += 35
-        pdf.ln(40)
+            if (i + 1) % 4 == 0: y_pos += 35
 
     if os.path.exists("delta.png"):
         if pdf.get_y() > 180: 
@@ -165,17 +161,15 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs, agora_relato
         
     return bytes(pdf.output())
 
-# --- 4. INTERFACE STREAMLIT ---
+# --- 4. INTERFACE ---
 if os.path.exists("logo.png"):
     st.image(Image.open("logo.png"), width=150)
 
 st.title("Monitor de aplicação - Gota Perfeita")
 
 col1, col2 = st.columns(2)
-with col1:
-    t_input = st.number_input("Temp. (°C)", 0.0, 50.0, 25.0, step=1.0)
-with col2:
-    ur_input = st.number_input("Umidade (%)", 1.0, 100.0, 60.0, step=5.0)
+with col1: t_input = st.number_input("Temp. (°C)", 0.0, 50.0, 25.0, step=1.0)
+with col2: ur_input = st.number_input("Umidade (%)", 1.0, 100.0, 60.0, step=5.0)
 
 dt_resultado = calcular_delta_t(t_input, ur_input)
 status, cor_bg, cor_txt, msg = obter_recomendacao(dt_resultado, t_input)
@@ -189,12 +183,9 @@ st.markdown(f"""
 
 st.markdown(f'<div class="status-card" style="background-color: {cor_bg}; color: {cor_txt};">{status}</div>', unsafe_allow_html=True)
 
-if "ADEQUADA" in status:
-    st.success(msg)
-elif "NÃO RECOMENDADO" in status:
-    st.error(msg)
-else:
-    st.warning(msg)
+if "ADEQUADA" in status: st.success(msg)
+elif "NÃO RECOMENDADO" in status: st.error(msg)
+else: st.warning(msg)
 
 st.divider()
 
@@ -205,12 +196,14 @@ with st.expander("Configurar Dados do Relatório", expanded=True):
     cliente_input = col_c.text_input("Nome do Cliente / Fazenda")
     rtv_input = col_r.text_input("Nome do RTV")
     
-    # DATA E HORA MANUAIS
+    # GERENCIAMENTO DE DATA E HORA
     fuso = pytz.timezone('America/Sao_Paulo')
-    agora_fuso = datetime.datetime.now(fuso)
+    if 'data_hora_ref' not in st.session_state:
+        st.session_state.data_hora_ref = datetime.datetime.now(fuso)
+
     col_data, col_hora = st.columns(2)
-    data_manual = col_data.date_input("Data da medição", agora_fuso.date())
-    hora_manual = col_hora.time_input("Hora da medição", agora_fuso.time())
+    data_manual = col_data.date_input("Data da medição", st.session_state.data_hora_ref.date())
+    hora_manual = col_hora.time_input("Hora da medição", st.session_state.data_hora_ref.time(), step=1800)
     agora_escolhida = datetime.datetime.combine(data_manual, hora_manual)
     
     st.write("**Posicionamento de Adjuvantes:**")
@@ -221,17 +214,13 @@ with st.expander("Configurar Dados do Relatório", expanded=True):
     a_chk = c_adj2.checkbox("ALVO")
     x_chk = c_adj1.checkbox("CITRO X")
     
-    # DOSES INTELIGENTES (Aparecem só se marcado)
     d_tek = c_adj2.text_input("Dose TEK F (ml/ha)", "50") if t_chk else ""
     d_thu = c_adj1.text_input("Dose THUNDER (ml/ha)", "50") if h_chk else ""
     d_alv = c_adj2.text_input("Dose ALVO (ml/ha)", "50") if a_chk else ""
     d_cit = c_adj1.text_input("Dose CITRO X (ml/ha)", "100") if x_chk else ""
-
     parecer_obrigatorio = st.text_area("Observação Técnica e Recomendação:", value=msg)
 
-# Prévia HTML com nome alterado para "Resumo rápido"
 if st.button("👁️ Resumo rápido"):
-    agora = agora_escolhida
     adjs_sel = []
     if aqx_chk: adjs_sel.append(("LINHA AQUAX", ""))
     if t_chk: adjs_sel.append(("TEK F", d_tek))
@@ -250,8 +239,8 @@ if st.button("👁️ Resumo rápido"):
     <div class="report-card">
         <div class="report-header"><img src="data:image/png;base64,{logo_gp_base64}"></div>
         <div class="report-info-bar">
-            <div class="info-row"><span>📍 CLIENTE: {cliente_input.upper() if cliente_input else 'NÃO INFORMADO'}</span><span>📅 DATA: {agora.strftime("%d/%m/%Y")}</span></div>
-            <div class="info-row"><span>👤 RTV: {rtv_input.upper() if rtv_input else 'REPRESENTANTE'}</span><span>⏰ HORA: {agora.strftime("%H:%M")}</span></div>
+            <div class="info-row"><span>📍 CLIENTE: {cliente_input.upper() if cliente_input else 'NÃO INFORMADO'}</span><span>📅 DATA: {agora_escolhida.strftime("%d/%m/%Y")}</span></div>
+            <div class="info-row"><span>👤 RTV: {rtv_input.upper() if rtv_input else 'REPRESENTANTE'}</span><span>⏰ HORA: {agora_escolhida.strftime("%H:%M")}</span></div>
         </div>
         <div class="report-body">
             <table style="width:100%; text-align:center; border:none; margin-bottom:15px;">
@@ -272,7 +261,7 @@ if st.button("👁️ Resumo rápido"):
 
 st.divider()
 
-# Preparação Final e Download usando a data escolhida
+# Preparação Final
 adjs_sel_final = []
 if aqx_chk: adjs_sel_final.append(("LINHA AQUAX", ""))
 if t_chk: adjs_sel_final.append(("TEK F", d_tek))
@@ -283,19 +272,15 @@ if x_chk: adjs_sel_final.append(("CITRO X", d_cit))
 pdf_final_bytes = exportar_pdf(cliente_input, rtv_input, int(t_input), int(ur_input), f"{dt_resultado:.1f}", status, parecer_obrigatorio, adjs_sel_final, agora_escolhida)
 
 col_p1, col_p2 = st.columns(2)
-
 with col_p1:
     if st.button("📄 Gerar Prévia PDF"):
         base64_pdf = base64.b64encode(pdf_final_bytes).decode('utf-8')
-        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
-        
-        # DICA POSICIONADA ACIMA DA PRÉVIA
-        st.info("💡 **Dica:** Segure pressionado sobre a prévia abaixo para compartilhar o relatório diretamente.")
-        st.markdown(pdf_display, unsafe_allow_html=True)
+        st.info("💡 **Dica:** Segure pressionado para compartilhar o relatório.")
+        st.markdown(f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>', unsafe_allow_html=True)
 
 with col_p2:
     st.download_button(
-        label="📥 Baixar Relatório em PDF",
+        label="📥 Baixar Relatório",
         data=pdf_final_bytes,
         file_name=f"Relatorio_{cliente_input if cliente_input else 'GP'}.pdf",
         mime="application/pdf"
