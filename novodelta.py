@@ -157,15 +157,21 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs, agora_relato
                     pdf.cell(25, 5, f"{dose} ml/ha", 0, 0, "C")
             
             if (i + 1) % 4 == 0:
-                y_pos += 35
+                y_pos += 35# AQUI ESTAVA O ERRO: Esta linha deve estar alinhada com o "if adjs:"
+        # Ela empurra o cursor para baixo das últimas logos processadas
+        pdf.set_y(y_pos + 40)
+
     if os.path.exists("delta.png"):
+        # Se o cursor chegou muito embaixo, joga a tabela para a próxima página
         if pdf.get_y() > 180: 
             pdf.add_page()
             pdf.set_fill_color(255, 255, 255)
             pdf.rect(0, 0, 210, 297, "F")
-             
+        
+        # Agora ela imprime onde o set_y parou, sem atropelar
+        pdf.image("delta.png", x=62, w=85) 
+        
     return bytes(pdf.output())
-
 # --- 4. INTERFACE ---
 if os.path.exists("logo.png"):
     st.image(Image.open("logo.png"), width=150)
