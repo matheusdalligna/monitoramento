@@ -212,35 +212,30 @@ st.divider()
 # --- SEÇÃO DO GERADOR DE RELATÓRIO ---
 st.subheader("Gerador de Relatório")
 with st.expander("Configurar Dados do Relatório", expanded=True):
-    # Criamos um formulário para que o usuário preencha tudo e processe de uma vez
-    with st.form("form_relatorio"):
-        col_c, col_r = st.columns(2)
-        cliente_input = col_c.text_input("Nome do Cliente / Fazenda")
-        rtv_input = col_r.text_input("Nome do RTV")
-        
-        st.write("**Posicionamento de Adjuvantes:**")
-        c_adj1, c_adj2 = st.columns(2)
-        aqx_chk = c_adj1.checkbox("LINHA AQUAX", value=True)
-        t_chk = c_adj2.checkbox("TEK F")
-        h_chk = c_adj1.checkbox("THUNDER")
-        a_chk = c_adj2.checkbox("ALVO")
-        x_chk = c_adj1.checkbox("CITRO X")
-        
-        d_tek = c_adj2.text_input("Dose TEK F (ml/ha)", "50")
-        d_thu = c_adj1.text_input("Dose THUNDER (ml/ha)", "50")
-        d_alv = c_adj2.text_input("Dose ALVO (ml/ha)", "50")
-        d_cit = c_adj1.text_input("Dose CITRO X (ml/ha)", "100")
+    col_c, col_r = st.columns(2)
+    cliente_input = col_c.text_input("Nome do Cliente / Fazenda")
+    rtv_input = col_r.text_input("Nome do RTV")
+    
+    st.write("**Posicionamento de Adjuvantes:**")
+    c_adj1, c_adj2 = st.columns(2)
+    
+    # Checkboxes
+    aqx_chk = c_adj1.checkbox("LINHA AQUAX", value=True)
+    t_chk = c_adj2.checkbox("TEK F")
+    h_chk = c_adj1.checkbox("THUNDER")
+    a_chk = c_adj2.checkbox("ALVO")
+    x_chk = c_adj1.checkbox("CITRO X")
+    
+    # As doses agora só aparecem se o respectivo check for True
+    d_tek = c_adj2.text_input("Dose TEK F (ml/ha)", "50") if t_chk else ""
+    d_thu = c_adj1.text_input("Dose THUNDER (ml/ha)", "50") if h_chk else ""
+    d_alv = c_adj2.text_input("Dose ALVO (ml/ha)", "50") if a_chk else ""
+    d_cit = c_adj1.text_input("Dose CITRO X (ml/ha)", "100") if x_chk else ""
 
-        parecer_obrigatorio = st.text_area("Observação Técnica e Recomendação:", value=msg)
-        
-        # Botão interno do formulário para validar as alterações
-        submeter = st.form_submit_button("Confirmar Dados do Relatório")
-
-if submeter:
-    st.toast("Dados atualizados com sucesso!", icon="✅")
+    parecer_obrigatorio = st.text_area("Observação Técnica e Recomendação:", value=msg)
 
 # Prévia HTML
-if st.button("👁️ Visualizar Relatório na Tela"):
+if st.button("👁️ Resumo Rápido"):
     agora = datetime.datetime.now()
     adjs_sel = []
     if aqx_chk: adjs_sel.append(("LINHA AQUAX", ""))
@@ -298,9 +293,10 @@ with col_p1:
     if st.button("📄 Gerar Prévia PDF"):
         base64_pdf = base64.b64encode(pdf_final_bytes).decode('utf-8')
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
+        
+        # A dica agora aparece logo após o clique e antes do PDF
+        st.info("💡 **Dica:** Segure pressionado sobre a prévia abaixo para compartilhar o relatório.")
         st.markdown(pdf_display, unsafe_allow_html=True)
-        # Orientação de uso adicionada abaixo
-        st.info("💡 **Dica:** Segure pressionado sobre a prévia gerada para compartilhar o relatório diretamente.")
 
 with col_p2:
     st.download_button(
@@ -310,4 +306,4 @@ with col_p2:
         mime="application/pdf"
     )
 
-st.caption("Gota Perfeita | Microxisto - Tecnologia em Adjuvantes")
+st.caption("Gota Perfeita | Sua Aplicação de Precisão")
