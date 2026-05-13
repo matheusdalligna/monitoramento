@@ -151,14 +151,13 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs, agora_relato
                     pdf.set_font(pdf_font, "B", 8)
                     pdf.cell(25, 5, f"{dose} ml/ha", 0, 0, "C")
             if (i + 1) % 4 == 0: y_pos += 35
-
+                pdf.set_y(y_pos + 40)
     if os.path.exists("delta.png"):
         if pdf.get_y() > 180: 
             pdf.add_page()
             pdf.set_fill_color(255, 255, 255)
             pdf.rect(0, 0, 210, 297, "F")
-        pdf.image("delta.png", x=62, w=85) 
-        
+             
     return bytes(pdf.output())
 
 # --- 4. INTERFACE ---
