@@ -112,7 +112,7 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs, agora_relato
         pdf_font = "helvetica"
 
     pdf.set_font(pdf_font, "B", 16)
-    pdf.cell(0, 10, "Relatório de Aplicacão - Gota Perfeita", 0, 1, "C")
+    pdf.cell(0, 10, "Relatório de Aplicação - Gota Perfeita", 0, 1, "C")
     pdf.ln(5)
     
     pdf.set_font(pdf_font, "", 11)
