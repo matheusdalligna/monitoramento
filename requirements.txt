@@ -1,3 +1,4 @@
 streamlit
 Pillow
 fpdf2
+pytz
