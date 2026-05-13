@@ -93,6 +93,11 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs):
     pdf = FPDF()
     pdf.add_page()
     
+    # AJUSTE 2: FUNDO BRANCO PARA NÃO FICAR PRETO NO COMPARTILHAMENTO
+    pdf.set_fill_color(255, 255, 255)
+    pdf.rect(0, 0, 210, 297, "F")
+    pdf.set_text_color(0, 0, 0)
+
     # Caminho absoluto para a fonte NotoSans-Regular.ttf
     current_dir = os.path.dirname(os.path.abspath(__file__))
     font_path = os.path.join(current_dir, "NotoSans-Regular.ttf")
@@ -145,6 +150,8 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs):
                 # Verifica se a imagem cabe na página antes de inserir
                 if y_pos > 250:
                     pdf.add_page()
+                    pdf.set_fill_color(255, 255, 255) # Fundo branco na nova página
+                    pdf.rect(0, 0, 210, 297, "F")
                     y_pos = 20
                 
                 pdf.image(img_path, x=x_start + (i % 4) * col_width, y=y_pos, w=25)
@@ -160,7 +167,10 @@ def exportar_pdf(cliente, rtv, temp, ur, dt, status, parecer, adjs):
 
     # Gráfico de Delta T
     if os.path.exists("delta.png"):
-        if pdf.get_y() > 180: pdf.add_page()
+        if pdf.get_y() > 180: 
+            pdf.add_page()
+            pdf.set_fill_color(255, 255, 255)
+            pdf.rect(0, 0, 210, 297, "F")
         pdf.image("delta.png", x=62, w=85) 
         
     # CORREÇÃO DO ERRO BYTEARRAY: Forçar conversão para bytes
@@ -202,24 +212,32 @@ st.divider()
 # --- SEÇÃO DO GERADOR DE RELATÓRIO ---
 st.subheader("Gerador de Relatório")
 with st.expander("Configurar Dados do Relatório", expanded=True):
-    col_c, col_r = st.columns(2)
-    cliente_input = col_c.text_input("Nome do Cliente / Fazenda")
-    rtv_input = col_r.text_input("Nome do RTV")
-    
-    st.write("**Posicionamento de Adjuvantes:**")
-    c_adj1, c_adj2 = st.columns(2)
-    aqx_chk = c_adj1.checkbox("LINHA AQUAX", value=True)
-    t_chk = c_adj2.checkbox("TEK F")
-    h_chk = c_adj1.checkbox("THUNDER")
-    a_chk = c_adj2.checkbox("ALVO")
-    x_chk = c_adj1.checkbox("CITRO X")
-    
-    d_tek = c_adj2.text_input("Dose TEK F (ml/ha)", "50") if t_chk else ""
-    d_thu = c_adj1.text_input("Dose THUNDER (ml/ha)", "50") if h_chk else ""
-    d_alv = c_adj2.text_input("Dose ALVO (ml/ha)", "50") if a_chk else ""
-    d_cit = c_adj1.text_input("Dose CITRO X (ml/ha)", "100") if x_chk else ""
+    # Criamos um formulário para que o usuário preencha tudo e processe de uma vez
+    with st.form("form_relatorio"):
+        col_c, col_r = st.columns(2)
+        cliente_input = col_c.text_input("Nome do Cliente / Fazenda")
+        rtv_input = col_r.text_input("Nome do RTV")
+        
+        st.write("**Posicionamento de Adjuvantes:**")
+        c_adj1, c_adj2 = st.columns(2)
+        aqx_chk = c_adj1.checkbox("LINHA AQUAX", value=True)
+        t_chk = c_adj2.checkbox("TEK F")
+        h_chk = c_adj1.checkbox("THUNDER")
+        a_chk = c_adj2.checkbox("ALVO")
+        x_chk = c_adj1.checkbox("CITRO X")
+        
+        d_tek = c_adj2.text_input("Dose TEK F (ml/ha)", "50")
+        d_thu = c_adj1.text_input("Dose THUNDER (ml/ha)", "50")
+        d_alv = c_adj2.text_input("Dose ALVO (ml/ha)", "50")
+        d_cit = c_adj1.text_input("Dose CITRO X (ml/ha)", "100")
 
-    parecer_obrigatorio = st.text_area("Observação Técnica e Recomendação:", value=msg)
+        parecer_obrigatorio = st.text_area("Observação Técnica e Recomendação:", value=msg)
+        
+        # Botão interno do formulário para validar as alterações
+        submeter = st.form_submit_button("Confirmar Dados do Relatório")
+
+if submeter:
+    st.toast("Dados atualizados com sucesso!", icon="✅")
 
 # Prévia HTML
 if st.button("👁️ Visualizar Relatório na Tela"):
@@ -281,6 +299,8 @@ with col_p1:
         base64_pdf = base64.b64encode(pdf_final_bytes).decode('utf-8')
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
+        # Orientação de uso adicionada abaixo
+        st.info("💡 **Dica:** Segure pressionado sobre a prévia gerada para compartilhar o relatório diretamente.")
 
 with col_p2:
     st.download_button(
